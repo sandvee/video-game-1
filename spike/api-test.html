@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>Day-1 Spike · DeepSeek API 连通性测试</title>
+<style>
+  body { font-family: system-ui; max-width: 640px; margin: 40px auto; padding: 0 16px; background: #F5EFE0; color: #4A3B32; }
+  h2 { margin-bottom: 4px; }
+  input, select, textarea, button { width: 100%; box-sizing: border-box; margin: 8px 0; padding: 8px; font-size: 14px; border: 1px solid #B98A5A; border-radius: 4px; }
+  button { background: #B98A5A; color: #fff; cursor: pointer; font-weight: bold; }
+  pre { background: #fff; padding: 12px; border-radius: 4px; white-space: pre-wrap; word-break: break-all; border: 1px solid #D9C9A3; }
+  .ok { color: #2E7D32; } .err { color: #C62828; }
+  .warn { background: #FFF4E0; border: 1px solid #E0C9A0; padding: 8px; border-radius: 4px; font-size: 13px; }
+</style>
+</head>
+<body>
+  <h2>Day-1 Spike · DeepSeek API 连通性测试</h2>
+  <p>目的：验证 <b>浏览器直连</b> DeepSeek API 是否被 CORS 拦截——这是全项目最大的技术未知数（见 ROADMAP 的 T2）。</p>
+  <div class="warn">⚠️ 安全提示：API key 只填在这台电脑的浏览器里，<b>不要</b>把这个 HTML 和 key 一起发给别人/传 GitHub。</div>
+
+  <label>API Key（DeepSeek 开放平台 → API Keys）</label>
+  <input id="key" type="password" placeholder="sk-...">
+
+  <label>模型（7/24 起旧名 deepseek-chat 停用，默认用 V4 Flash 新 id）</label>
+  <select id="model">
+    <option value="deepseek-v4-flash">deepseek-v4-flash（推荐）</option>
+    <option value="deepseek-chat">deepseek-chat（旧别名，可能已停用）</option>
+  </select>
+
+  <label>测试问题</label>
+  <textarea id="prompt" rows="2">你好，请用一句话介绍你自己。</textarea>
+
+  <button onclick="runTest()">发送测试请求</button>
+  <pre id="log">（结果会显示在这里）</pre>
+
+<script>
+async function runTest() {
+  const key   = document.getElementById('key').value.trim();
+  const model = document.getElementById('model').value;
+  const prompt = document.getElementById('prompt').value.trim();
+  const log = document.getElementById('log');
+  log.className = '';
+  if (!key) { log.textContent = '请先填写 API Key'; log.className = 'err'; return; }
+
+  log.textContent = '请求中…（等待 1-10 秒）';
+  const start = Date.now();
+  try {
+    const res = await fetch('https://api.deepseek.com/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+      body: JSON.stringify({ model, messages: [{ role: 'user', content: prompt }], stream: false })
+    });
+    const elapsed = ((Date.now() - start) / 1000).toFixed(1);
+
+    if (!res.ok) {
+      const body = await res.text();
+      log.className = 'err';
+      log.textContent = 'HTTP ' + res.status + '（' + elapsed + 's）\n' + body;
+      return;
+    }
+    const data = await res.json();
+    log.className = 'ok';
+    log.textContent = '✅ 成功！(' + elapsed + 's，' + (data.usage ? data.usage.total_tokens : '?') + ' tokens）\n\nAI 回复：' + (data.choices && data.choices[0] ? data.choices[0].message.content : JSON.stringify(data, null, 2));
+  } catch (e) {
+    log.className = 'err';
+    log.textContent = '❌ 请求失败：' + e.message + '\n\n判断方法：\n' +
+      '· 报错是 "Failed to fetch" 且没有 HTTP 状态码 → 大概率是 CORS 拦截。对策：写一个 15 行的本地代理（找 DSH 要，5 分钟）。\n' +
+      '· 有 HTTP 状态码（如 401/404）→ CORS 没问题，问题在 key、模型名或参数。';
+  }
+}
+</script>
+</body>
+</html>

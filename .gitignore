@@ -1,0 +1,11 @@
+# 忽略文件（安全与杂物）
+node_modules/
+*.log
+.DS_Store
+Thumbs.db
+
+# 密钥类文件——永远不要提交 API key
+*.key
+key*.txt
+.env
+secrets/
