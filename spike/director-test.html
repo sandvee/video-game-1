@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<title>L3 可行性测试 · AI 剧情导演测试台</title>
+<title>L3 可行性测试 v2 · AI 剧情导演测试台（编号选择协议）</title>
 <style>
   body { font-family: system-ui; max-width: 760px; margin: 32px auto; padding: 0 16px; background: #F5EFE0; color: #4A3B32; }
   h2 { margin-bottom: 4px; }
@@ -11,17 +11,14 @@
   button { background: #B98A5A; color: #fff; cursor: pointer; font-weight: bold; margin-right: 8px; }
   button.alt { background: #8FB573; }
   pre { background: #fff; padding: 12px; border-radius: 4px; white-space: pre-wrap; word-break: break-all; border: 1px solid #D9C9A3; font-size: 12px; max-height: 480px; overflow: auto; }
-  table { border-collapse: collapse; width: 100%; margin-top: 8px; font-size: 13px; }
-  th, td { border: 1px solid #D9C9A3; padding: 4px 8px; text-align: left; }
-  th { background: #FBF6E9; }
   .ok { color: #2E7D32; } .bad { color: #C62828; } .warn { color: #B85C38; }
   details { margin: 10px 0; }
   summary { cursor: pointer; font-weight: bold; }
 </style>
 </head>
 <body>
-  <h2>L3 可行性测试 · AI 剧情导演测试台</h2>
-  <p>目的：验证 v4 flash 能否在<strong>预制事件池</strong>中编排剧情走向（每次游玩不同、不脱轨、能走向结局）。这是 L3「AI 决定主线」的核心机制。</p>
+  <h2>L3 可行性测试 v2 · AI 剧情导演测试台</h2>
+  <p>v2 改动：① 改用<strong>编号选择协议</strong>（AI 只输出数字，服从率远高于 [事件] 标记）；② 提示词<strong>只列满足前置的事件</strong>（结构上杜绝违规选择）；③ 解析失败<strong>重试一次</strong>。</p>
 
   <label>API Key（桌面 API.txt）</label>
   <input id="key" type="password" placeholder="sk-...">
@@ -61,44 +58,50 @@ const POOL = [
 
 const WORLD = '云杉镇：一座河边小镇，三百多口人，以「树影咖啡馆」与手作面包闻名。主角小夏（20 岁，大一学生）暑假回乡帮舅舅（林叔）打理咖啡馆。基调平淡温柔，允许一点轻悬念（“河边的光”），但整体治愈不压抑。';
 
-// ============ 提示词构建 ============
-function buildPrompt(seq, flags, available, endOptions) {
-  const list = POOL.map(ev => {
-    const req = ev.requires.length ? ev.requires.join(' 且 ') : (ev.requiresAny.length ? ('任一: ' + ev.requiresAny.join('/')) : '无');
-    const ending = ev.ending ? '【结局】' : '';
-    return `- ${ev.id}「${ev.title}」：${ev.premise}（前置: ${req}${ev.minEvents ? '，至少触发' + ev.minEvents + '个事件' : ''}）${ending}`;
-  }).join('\n');
-  return `【角色】你是《云杉镇》的剧情导演（AI Director）。你只负责决定“下一步发生哪个事件”，不写角色对话。
-【世界观】${WORLD}
-【事件池】只能选择下列事件（id 唯一）：
-${list}
-【当前状态】已发生事件顺序：${seq.length ? seq.join(' → ') : '（开局，尚无事件）'}
-已解锁标记：${flags.length ? flags.join(', ') : '（无）'}
-【规则】
-1. 只能选择“前置条件全部满足”的事件；结局事件只有条件满足才能选；结局事件一旦选中，本局结束。
-2. 事件不要重复；优先推进尚未发生的事件；同一条故事线（老周-光 / 陈婆婆-长椅 / 苏黎-邀请函）建议串起来讲。
-3. 节奏：前期 1-2 个日常铺垫 → 中期推进线索 → 约第 6-9 个事件时选择结局事件收束。不要过早结束，也不要拖到第 10 个以上。
-4. 输出恰好两行：第一行 [事件]事件id；第二行 1-2 句衔接旁白（叙事性描写发生了什么，不写角色台词、不写玩家选项）。
-5. 严禁输出事件池之外的 id；严禁编造事件；严禁输出多余解释。
-【现在输出】`;
+// ============ 可用事件筛选 ============
+function availableEvents(seq, flags) {
+  return POOL.filter(ev =>
+    !seq.includes(ev.id) &&                        // 不重复
+    ev.requires.every(f => flags.includes(f)) &&
+    (ev.requiresAny.length === 0 || ev.requiresAny.some(f => flags.includes(f))) &&
+    seq.length >= ev.minEvents
+  );
 }
 
-// ============ 解析 ============
-function parseEventId(text) {
-  const m = text.match(/\[事件\]\s*([A-Za-z0-9_]+)/);
-  return m ? m[1] : null;
+// ============ 提示词构建（编号选择协议） ============
+function buildPrompt(seq, flags, choices) {
+  const list = choices.map((ev, i) =>
+    '- ' + (i + 1) + '「' + ev.title + '」：' + ev.premise + (ev.ending ? '【结局事件，选中即结束本局】' : '')
+  ).join('\n');
+  return '【角色】你是《云杉镇》的剧情导演。你只负责决定“下一步发生哪个事件”，不写角色对话。\n' +
+    '【世界观】' + WORLD + '\n' +
+    '【当前状态】已发生事件：' + (seq.length ? seq.join(' → ') : '（开局，尚无事件）') + '\n' +
+    '已解锁标记：' + (flags.length ? flags.join(', ') : '（无）') + '\n' +
+    '【可选事件】以下编号是你当前唯一可选的候选（含结局事件）：\n' + list + '\n' +
+    '【输出格式】第一行只输出一个数字（选择的事件编号）；第二行输出 1-2 句衔接旁白（叙事性描写发生了什么，不写角色台词、不写玩家选项）。\n' +
+    '【示例】如果选择第 3 个候选：\n3\n傍晚的风把咖啡香吹过广场。\n' +
+    '【铁律】第一行只能是数字，不要输出事件名、不要加括号引号、不要解释；第二行才是旁白。违反格式的回复会被丢弃。';
+}
+
+// ============ 解析（取第一行纯数字，兜底取全文第一个数字） ============
+function parseChoice(text, maxN) {
+  const lineNum = text.match(/^\s*(\d{1,2})\s*$/m);
+  const n = lineNum ? parseInt(lineNum[1], 10) : parseInt((text.match(/\d+/) || ['0'])[0], 10);
+  return (n >= 1 && n <= maxN) ? n : null;
 }
 function narrLine(text) {
-  const m = text.match(/\[事件\]\s*[A-Za-z0-9_]+\s*\n?\s*([\s\S]*)/);
-  return (m && m[1] ? m[1] : text).trim().slice(0, 200);
+  const m = text.match(/^\s*\d{1,2}\s*$/m);
+  if (m) return text.slice(m.index + m[0].length).trim().slice(0, 200);
+  const lines = text.split(/\r?\n/).filter(l => l.trim() !== '');
+  return lines.length > 1 ? lines.slice(1).join(' ').slice(0, 200) : text.trim().slice(0, 200);
 }
 
 // ============ API 调用 ============
-async function callAI(key, model, prompt) {
+async function callAI(key, model, messages) {
   const res = await fetch('https://api.deepseek.com/chat/completions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
-    body: JSON.stringify({ model, messages: [{ role: 'user', content: prompt }], stream: false, max_tokens: 300 })
+    body: JSON.stringify({ model, messages, stream: false, max_tokens: 300 })
   });
   if (!res.ok) throw new Error('HTTP ' + res.status + ': ' + (await res.text()).slice(0, 200));
   const data = await res.json();
@@ -109,32 +112,36 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 // ============ 单局模拟 ============
 async function runOnce(key, model) {
   const flags = [], seq = [], viol = [], narrs = [];
-  let ending = null, malformed = 0, fallback = 0;
+  let ending = null, malformed = 0, fallback = 0, retried = 0;
   for (let step = 0; step < 15; step++) {
-    const avail = POOL.filter(ev => !ev.ending && ev.requires.every(f => flags.includes(f)) && (ev.requiresAny.length === 0 || ev.requiresAny.some(f => flags.includes(f))) && seq.length >= ev.minEvents);
-    const ends = POOL.filter(ev => ev.ending && ev.requires.every(f => flags.includes(f)) && (ev.requiresAny.length === 0 || ev.requiresAny.some(f => flags.includes(f))) && seq.length >= ev.minEvents);
-    if (avail.length === 0 && ends.length === 0) { viol.push('卡死：无可用事件'); break; }
-    const prompt = buildPrompt(seq, flags, avail, ends);
+    const choices = availableEvents(seq, flags);
+    if (choices.length === 0) { viol.push('卡死：无可用事件'); break; }
+    const prompt = buildPrompt(seq, flags, choices);
     lastPrompt = prompt;
-    const text = await callAI(key, model, prompt);
+    let text = await callAI(key, model, [{ role: 'user', content: prompt }]);
+    let n = parseChoice(text, choices.length);
+    if (n === null) {
+      retried++;
+      text = await callAI(key, model, [
+        { role: 'user', content: prompt },
+        { role: 'user', content: '你刚才没有按格式输出。现在只输出一行数字（1-' + choices.length + '），然后换行写旁白。' }
+      ]);
+      n = parseChoice(text, choices.length);
+    }
     let ev = null;
-    const id = parseEventId(text);
-    if (id) {
-      const found = POOL.find(e => e.id === id);
-      if (found) {
-        if ((found.ending && !ends.includes(found)) || (!found.ending && !avail.includes(found))) {
-          viol.push('违规选择:' + id + '（前置不满足）');
-        } else { ev = found; }
-      } else { viol.push('非法id:' + id); }
-    } else { malformed++; viol.push('未解析出[事件]标记'); }
-    if (!ev) { fallback++; ev = (avail.length ? avail[Math.floor(Math.random() * avail.length)] : ends[0]); }
+    if (n === null) {
+      malformed++; viol.push('两次均未解析出编号：' + text.slice(0, 60).replace(/\n/g, ' '));
+    } else {
+      ev = choices[n - 1];
+    }
+    if (!ev) { fallback++; ev = choices[Math.floor(Math.random() * choices.length)]; }
     seq.push(ev.id);
     narrs.push(narrLine(text));
     ev.sets.forEach(f => { if (!flags.includes(f)) flags.push(f); });
     if (ev.ending) { ending = ev.id; break; }
     await sleep(200);
   }
-  return { seq, ending, viol, malformed, fallback, narrs };
+  return { seq, ending, viol, malformed, fallback, retried, narrs };
 }
 
 let lastPrompt = '';
@@ -152,28 +159,30 @@ async function runRuns(n) {
   statusEl.textContent = '运行中（每局约 6-10 次调用，需 1-2 分钟）…'; statusEl.className = 'warn';
   const results = [];
   for (let i = 0; i < n; i++) {
-    log(`—— 第 ${i + 1} 局 ——`);
+    log('—— 第 ' + (i + 1) + ' 局 ——');
     try {
       const r = await runOnce(key, model);
       results.push(r);
-      log(`事件序列: ${r.seq.join(' → ')}`);
-      log(`结局: ${r.ending || '无（15 步未结束）'} | 违规: ${r.viol.length} | 兜底: ${r.fallback} | 未解析: ${r.malformed}`);
+      log('事件序列: ' + r.seq.join(' → '));
+      log('结局: ' + (r.ending || '无（15 步未结束）') + ' | 格式失败: ' + r.malformed + '（重试 ' + r.retried + ' 次）| 随机兜底: ' + r.fallback);
       r.viol.forEach(v => log('  ⚠ ' + v));
     } catch (e) { log('❌ 本局失败: ' + e.message); }
     log('');
   }
-  // 汇总
   if (results.length) {
     const distinct = new Set(results.map(r => r.seq.join('>'))).size;
     const endOk = results.filter(r => r.ending).length;
-    const totalViol = results.reduce((s, r) => s + r.viol.length, 0);
-    statusEl.textContent = `完成：${results.length} 局，不同事件序列 ${distinct} 种，自然走到结局 ${endOk}/${results.length} 局，共违规 ${totalViol} 次`;
-    statusEl.className = totalViol <= results.length && endOk >= results.length * 0.7 ? 'ok' : 'bad';
-    log(`\n===== 汇总 =====`);
-    log(`不同事件序列: ${distinct} 种 / ${results.length} 局`);
-    log(`自然结局: ${endOk}/${results.length} 局`);
-    log(`违规/兜底/未解析 合计: ${totalViol} 次（目标：每局 ≤1 次）`);
-    log(`判断标准：序列 ≥3 种 且 结局 ≥70% 且 每局违规 ≤1 → L3 机制可行`);
+    const totalMal = results.reduce((s, r) => s + r.malformed, 0);
+    const totalFall = results.reduce((s, r) => s + r.fallback, 0);
+    const totalRetry = results.reduce((s, r) => s + r.retried, 0);
+    statusEl.textContent = '完成：' + results.length + ' 局，不同序列 ' + distinct + ' 种，自然结局 ' + endOk + '/' + results.length + ' 局，格式失败合计 ' + totalMal + ' 次（重试 ' + totalRetry + ' 次），随机兜底合计 ' + totalFall + ' 次';
+    statusEl.className = (totalMal <= results.length && endOk >= results.length * 0.7) ? 'ok' : 'bad';
+    log('');
+    log('===== 汇总 =====');
+    log('不同事件序列: ' + distinct + ' 种 / ' + results.length + ' 局（目标 ≥3）');
+    log('自然结局: ' + endOk + '/' + results.length + ' 局（目标 ≥70%）');
+    log('格式失败(重试后仍失败): ' + totalMal + ' 次（目标 每局 ≤1）| 随机兜底: ' + totalFall + ' 次');
+    log('判断标准：序列 ≥3 种 且 结局 ≥70% 且 格式失败每局 ≤1 → L3 机制可行');
   }
 }
 function togglePrompt() {
