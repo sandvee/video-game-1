@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<title>云杉镇 · M1 地图原型</title>
+<title>云杉镇 · M2 对话原型</title>
 <style>
   body { margin:0; background:#2E2A26; display:flex; flex-direction:column; align-items:center; padding-top:24px; font-family:system-ui; color:#F5EFE0; }
   h1 { font-size:18px; font-weight:normal; margin:0 0 12px; }
@@ -11,11 +11,13 @@
 </style>
 </head>
 <body>
-  <h1>云杉镇 · M1 地图原型（占位美术，双击打开即玩）</h1>
+  <h1>云杉镇 · M2 对话原型（假数据，双击打开即玩）</h1>
   <canvas id="game" width="960" height="720"></canvas>
-  <p class="hint">WASD / 方向键 移动 · 空格 互动 · 当前为程序生成的测试地图，真实 Tiled 地图由美术方绘制后替换</p>
+  <p class="hint">WASD / 方向键 移动 · 走近 NPC 按空格对话 · 选项用数字键 1-4 或鼠标点击 · 对话数据为本地假数据，M3 换成真 AI</p>
   <script src="src/config.js"></script>
   <script src="src/maps/town.map.js"></script>
+  <script src="src/dialogues.js"></script>
+  <script src="src/dialogue.js"></script>
   <script src="src/engine.js"></script>
 </body>
 </html>

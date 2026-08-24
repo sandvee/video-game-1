@@ -92,6 +92,60 @@ window.TOWN_MAP = {
                                            "y":  832,
                                            "x":  96,
                                            "height":  64
+                                       },
+                                       {
+                                           "id":  9,
+                                           "name":  "lin_shu",
+                                           "width":  32,
+                                           "y":  256,
+                                           "type":  "npc",
+                                           "x":  512,
+                                           "height":  48
+                                       },
+                                       {
+                                           "id":  10,
+                                           "name":  "su_li",
+                                           "width":  32,
+                                           "y":  480,
+                                           "type":  "npc",
+                                           "x":  256,
+                                           "height":  48
+                                       },
+                                       {
+                                           "id":  11,
+                                           "name":  "lao_zhou",
+                                           "width":  32,
+                                           "y":  832,
+                                           "type":  "npc",
+                                           "x":  96,
+                                           "height":  48
+                                       },
+                                       {
+                                           "id":  12,
+                                           "name":  "a_he",
+                                           "width":  32,
+                                           "y":  480,
+                                           "type":  "npc",
+                                           "x":  1056,
+                                           "height":  48
+                                       },
+                                       {
+                                           "id":  13,
+                                           "name":  "xiao_man",
+                                           "width":  32,
+                                           "y":  256,
+                                           "type":  "npc",
+                                           "x":  864,
+                                           "height":  48
+                                       },
+                                       {
+                                           "id":  14,
+                                           "name":  "chen_po",
+                                           "width":  32,
+                                           "y":  640,
+                                           "type":  "npc",
+                                           "x":  992,
+                                           "height":  48
                                        }
                                    ]
                    }

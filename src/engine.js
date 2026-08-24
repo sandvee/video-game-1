@@ -1,4 +1,4 @@
-// M1 地图引擎：加载 Tiled JSON 地图 → 渲染 → 玩家移动/碰撞 → 镜头跟随
+// M1+M2 引擎：地图渲染/移动/碰撞/镜头 + 对话模块集成
 // 用法：双击 index.html（数据以 .js 内嵌，不走 fetch，file:// 也能跑）
 (() => {
   'use strict';
@@ -37,7 +37,7 @@
   canvas.width = CFG.VIEW_W;
   canvas.height = CFG.VIEW_H;
 
-  // 离线渲染整张地图一次，每帧只做裁剪拷贝（性能好，实现简单）
+  // 离线渲染整张地图一次，每帧只做裁剪拷贝
   const mapCanvas = document.createElement('canvas');
   mapCanvas.width = W * TILE;
   mapCanvas.height = H * TILE;
@@ -53,9 +53,11 @@
     }
   })();
 
-  // ---- 事件对象（出生点 / 门 / 触发点）----
+  // ---- 事件对象：NPC 与触发点分离 ----
   const events = (eventLayer && eventLayer.objects) || [];
   const spawn = events.find(e => e.name === 'spawn') || { x: 0, y: 0, width: 32, height: 32 };
+  const npcs = events.filter(e => e.type === 'npc');
+  const triggers = events.filter(e => e.name !== 'spawn' && e.type !== 'npc');
 
   // ---- 玩家 ----
   const player = {
@@ -67,22 +69,37 @@
 
   // ---- 输入 ----
   const keys = {};
-  const interact = () => {
+  const nearNpc = () => npcs.find(n => {
+    const r = 44; // 交互半径 px
+    const cx = n.x + (n.width || 32) / 2, cy = n.y + (n.height || 48) / 2;
+    const px = player.x + CFG.PLAYER_W / 2, py = player.y + CFG.PLAYER_H / 2;
+    return Math.abs(px - cx) < r && Math.abs(py - cy) < r;
+  });
+  const overlapTriggers = () => {
     const cx = player.x + CFG.PLAYER_W / 2, cy = player.y + CFG.PLAYER_H / 2;
-    return events.filter(e => e.name !== 'spawn' &&
+    return triggers.filter(e =>
       cx >= e.x && cx <= e.x + (e.width || 32) &&
       cy >= e.y && cy <= e.y + (e.height || 32)
     ).map(e => e.name);
   };
+
   window.addEventListener('keydown', e => {
     if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) e.preventDefault();
+    if (Dialogue.active) { Dialogue.onKey(e.code); return; }   // 对话中：按键交给对话
     if (e.code === 'Space') {
-      const hit = interact();
-      if (hit.length) console.log('[互动] 触发点：' + hit.join(', '));
+      const n = nearNpc();
+      if (n) { Dialogue.start(n.name); return; }
+      const hit = overlapTriggers();
+      if (hit.length) console.log('[触发点] ' + hit.join(', '));
     }
     keys[e.code] = true;
   });
   window.addEventListener('keyup', e => { keys[e.code] = false; });
+  canvas.addEventListener('click', e => {
+    if (!Dialogue.active) return;
+    const r = canvas.getBoundingClientRect();
+    Dialogue.onClick(e.clientX - r.left, e.clientY - r.top);
+  });
 
   // ---- 碰撞：逐轴移动 + 回退 ----
   const moveAxis = (axis, delta) => {
@@ -90,7 +107,6 @@
     const maxX = W * TILE - CFG.PLAYER_W, maxY = H * TILE - CFG.PLAYER_H;
     if (axis === 'x') { if (player.x < 0) player.x = 0; if (player.x > maxX) player.x = maxX; }
     else { if (player.y < 0) player.y = 0; if (player.y > maxY) player.y = maxY; }
-    // 用脚底中心点做四角检测
     const px = player.x + CFG.PLAYER_W / 2;
     const py = player.y + CFG.PLAYER_H - 4;
     const r = CFG.PLAYER_W / 2, b = CFG.PLAYER_H - 4;
@@ -106,7 +122,7 @@
     if (blocked) { if (axis === 'x') player.x -= delta; else player.y -= delta; }
   };
 
-  // ---- 镜头跟随（限制在地图范围内）----
+  // ---- 镜头跟随 ----
   const cam = { x: 0, y: 0 };
   const updateCam = () => {
     cam.x = player.x + CFG.PLAYER_W / 2 - CFG.VIEW_W / 2;
@@ -115,7 +131,29 @@
     cam.y = Math.max(0, Math.min(cam.y, H * TILE - CFG.VIEW_H));
   };
 
-  // ---- 玩家占位绘制（真实精灵表就绪后替换为贴图）----
+  // ---- NPC 占位绘制（真实精灵表就绪后替换） ----
+  function npcMeta(id) { return (window.NPC_META && window.NPC_META[id]) || { name: id, color: '#B98A5A' }; }
+  const drawNpcs = () => {
+    for (const n of npcs) {
+      const meta = npcMeta(n.name);
+      const x = Math.round(n.x - cam.x), y = Math.round(n.y - cam.y);
+      ctx.fillStyle = '#4A3B32';                       // 头发
+      ctx.fillRect(x + 4, y, 24, 10);
+      ctx.fillStyle = '#F2C9A0';                       // 脸
+      ctx.fillRect(x + 5, y + 10, 22, 6);
+      ctx.fillStyle = meta.color;                      // 衣服（按角色配色）
+      ctx.fillRect(x + 2, y + 16, 28, 18);
+      ctx.fillStyle = '#B98A5A';                       // 裤子
+      ctx.fillRect(x + 6, y + 34, 20, 10);
+      ctx.fillStyle = '#4A3B32';                       // 名字
+      ctx.font = '11px system-ui';
+      ctx.textAlign = 'center';
+      ctx.fillText(meta.name, x + 16, y - 4);
+      ctx.textAlign = 'left';
+    }
+  };
+
+  // ---- 玩家占位绘制 ----
   const drawPlayer = () => {
     const x = Math.round(player.x - cam.x), y = Math.round(player.y - cam.y);
     ctx.fillStyle = '#4A3B32';                       // 头发
@@ -137,28 +175,30 @@
     const dt = Math.min((now - last) / 1000, 0.05);
     last = now;
 
-    let dx = 0, dy = 0;
-    if (keys['ArrowLeft'] || keys['KeyA']) dx -= 1;
-    if (keys['ArrowRight'] || keys['KeyD']) dx += 1;
-    if (keys['ArrowUp'] || keys['KeyW']) dy -= 1;
-    if (keys['ArrowDown'] || keys['KeyS']) dy += 1;
-    const len = Math.hypot(dx, dy);
-    player.moving = len > 0;
-    if (player.moving) {
-      player.vx = dx / len * CFG.PLAYER_SPEED;
-      player.vy = dy / len * CFG.PLAYER_SPEED;
-      if (Math.abs(dx) > Math.abs(dy)) player.dir = dx > 0 ? 'right' : 'left';
-      else if (dy !== 0) player.dir = dy > 0 ? 'down' : 'up';
-    } else { player.vx = 0; player.vy = 0; }
-
-    moveAxis('x', player.vx * dt);
-    moveAxis('y', player.vy * dt);
+    if (!Dialogue.active) {
+      let dx = 0, dy = 0;
+      if (keys['ArrowLeft'] || keys['KeyA']) dx -= 1;
+      if (keys['ArrowRight'] || keys['KeyD']) dx += 1;
+      if (keys['ArrowUp'] || keys['KeyW']) dy -= 1;
+      if (keys['ArrowDown'] || keys['KeyS']) dy += 1;
+      const len = Math.hypot(dx, dy);
+      player.moving = len > 0;
+      if (player.moving) {
+        player.vx = dx / len * CFG.PLAYER_SPEED;
+        player.vy = dy / len * CFG.PLAYER_SPEED;
+        if (Math.abs(dx) > Math.abs(dy)) player.dir = dx > 0 ? 'right' : 'left';
+        else if (dy !== 0) player.dir = dy > 0 ? 'down' : 'up';
+      } else { player.vx = 0; player.vy = 0; }
+      moveAxis('x', player.vx * dt);
+      moveAxis('y', player.vy * dt);
+    }
     updateCam();
 
-    // 绘制
+    // 绘制场景
     ctx.fillStyle = '#F5EFE0';
     ctx.fillRect(0, 0, CFG.VIEW_W, CFG.VIEW_H);
     ctx.drawImage(mapCanvas, Math.round(-cam.x), Math.round(-cam.y));
+    drawNpcs();
     drawPlayer();
 
     // HUD
@@ -166,9 +206,21 @@
     const ty = Math.floor((player.y + CFG.PLAYER_H / 2) / TILE);
     ctx.fillStyle = 'rgba(74,59,50,0.85)';
     ctx.font = '14px system-ui';
-    ctx.fillText(`位置 (${tx},${ty}) · WASD/方向键移动 · 空格互动`, 8, 20);
-    const near = interact();
-    if (near.length) ctx.fillText(`按空格：${near.join(' / ')}`, 8, 40);
+    if (Dialogue.active) {
+      ctx.fillText('对话中 · 空格推进 · 数字键/点击选项', 8, 20);
+    } else {
+      ctx.fillText('位置 (' + tx + ',' + ty + ') · WASD/方向键移动 · 空格互动', 8, 20);
+      const n = nearNpc();
+      if (n) ctx.fillText('按空格与 ' + npcMeta(n.name).name + ' 对话', 8, 40);
+      else {
+        const hit = overlapTriggers();
+        if (hit.length) ctx.fillText('触发点：' + hit.join(' / '), 8, 40);
+      }
+    }
+
+    // 对话层
+    Dialogue.update(dt);
+    Dialogue.draw(ctx, CFG.VIEW_W, CFG.VIEW_H);
 
     requestAnimationFrame(loop);
   };

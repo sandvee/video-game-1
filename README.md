@@ -32,6 +32,7 @@ AI 调用 DeepSeek API（v4 flash），本地 Tiled 画地图，LibreSprite 画�
 - [x] Day-1 spike 测试页已就绪：spike/api-test.html（填 key 即可验证浏览器直连 API）
 - [x] DeepSeek API key 已就绪（桌面 API.txt，**不入库**）；**spike 已在本机跑通，浏览器直连无 CORS 拦截**
 - [x] **M1 引擎原型已就绪：双击 index.html 即可玩**（40x30 测试地图渲染 + 四向移动 + 碰撞 + 镜头跟随 + 8 个触发点）
+- [x] **M2 对话原型已就绪：走近 NPC 按空格对话**（底部对话框 + 打字机 + 选项按钮 + 宽容协议解析 + 6 个 NPC 假对话，src/dialogue.js + src/dialogues.js）
 - [x] **L3 可行性测试台已就绪：spike/director-test.html**（AI 导演在事件池中编排剧情，验证"每次都不一样"是否可行，方法见 docs/SPIKE_DIRECTOR.md）
 - [x] **L3 导演机制验证通过**：5/5 局自然结局、5/5 种不同序列、格式失败 0（编号选择协议）→ 事件系统按「事件池 + AI 导演」纳入 M4（决策 D47/D48）
 - [ ] M0 剩余：推送仓库到 GitHub（首次用 GitHub Desktop）→ 同伴 clone → 装 Tiled/LibreSprite → 画小镇第一版 → 定分工

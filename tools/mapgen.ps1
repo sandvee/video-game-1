@@ -56,7 +56,13 @@ $objects = @(
   @{ id=5;  name='door_grocery';     x=1056; y=448;  width=32;  height=32  },
   @{ id=6;  name='bench_bread';      x=96;   y=544;  width=32;  height=32  },
   @{ id=7;  name='river_light';      x=64;   y=640;  width=64;  height=64  },
-  @{ id=8;  name='old_zhou_fishing'; x=96;   y=832;  width=96;  height=64  }
+  @{ id=8;  name='old_zhou_fishing'; x=96;   y=832;  width=96;  height=64  },
+  @{ id=9;  name='lin_shu';    type='npc'; x=512;  y=256;  width=32;  height=48  },
+  @{ id=10; name='su_li';      type='npc'; x=256;  y=480;  width=32;  height=48  },
+  @{ id=11; name='lao_zhou';   type='npc'; x=96;   y=832;  width=32;  height=48  },
+  @{ id=12; name='a_he';       type='npc'; x=1056; y=480;  width=32;  height=48  },
+  @{ id=13; name='xiao_man';   type='npc'; x=864;  y=256;  width=32;  height=48  },
+  @{ id=14; name='chen_po';    type='npc'; x=992;  y=640;  width=32;  height=48  }
 )
 
 # PS 5.1 ConvertTo-Json wraps int[] as {"value":[...]} - bypass with placeholder injection
