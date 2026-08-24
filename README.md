@@ -28,12 +28,14 @@ AI 调用 DeepSeek API（v4 flash），本地 Tiled 画地图，LibreSprite 画�
 ## 当前状态
 
 - [x] 2026-07 需求访谈完成（本文档即访谈产物）
-- [x] 内容草案三件套已出：NPC（docs/drafts/NPC_DRAFTS.md）、地图（docs/drafts/MAP_DRAFTS.md）、配色（docs/drafts/PALETTES.md）——**待两人审核**
+- [x] 内容草案三件套已审核通过；NPC 人物卡已定稿 data/npcs/*.json；配色选定方案 A「奶油与青草」
 - [x] Day-1 spike 测试页已就绪：spike/api-test.html（填 key 即可验证浏览器直连 API）
-- [ ] M0：环境搭建 + 审核草案 + AI 连通性验证（计划两周内启动）
+- [x] DeepSeek API key 已就绪（桌面 API.txt，**不入库**）；连通性待本机浏览器验证
+- [ ] M0 剩余：本机跑 spike → 建远程仓库推送 → 装 Tiled/LibreSprite → 画小镇第一版 → 定分工
 
 ## 协作约定（速查）
 
+- 仓库：https://github.com/sandvee/video-game-1
 - 语言：中文；目标平台：Windows；预算：0 元（API 充值约 10 元除外）
 - 版本管理：Git + GitHub 私有仓库，改动走 PR 互查
 - 决策一律落 `docs/decisions.md`，不靠口头记忆
