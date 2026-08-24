@@ -36,6 +36,29 @@
 7. **学业冲突**：忙时降速不放弃，里程碑滑动不删除。
 8. **代码质量**：DSH 生成代码后，人必须通读一遍再合并；改动走 PR 互查。
 
+## 仓库内容清单（GitHub 上传规则）
+
+**要上传（靠 git 提交+推送，不是手动逐个传）**
+- 全部代码：index.html、src/*.js、样式
+- 游戏数据：data/（人物卡、事件脚本、提示词）
+- 文档：docs/、README.md
+- 美术与音频：assets/（tileset、精灵、BGM、音效；免费素材包的授权文件一并保留）
+- 地图：Tiled 导出的 JSON
+- spike/ 测试页（key 是运行时输入的，页面本身不含密钥）
+
+**不要上传**
+- API key：桌面 API.txt 在仓库外；若复制进项目，.gitignore 会拦截 key*.txt / *.key / .env
+- 本地存档：saves/、*.save（已在 .gitignore）
+- 个人隐私文件
+
+**上传方式（三条命令，全量同步）**
+```
+git add .             # 暂存全部改动（或 git add 具体文件）
+git commit -m "说明"   # 提交
+git push              # 推送到 GitHub
+```
+GitHub Desktop 图形界面 = 同样的三步（写 Summary → Commit → Push origin）。
+
 ## 当前状态与下一步
 
 - 访谈完成，本文档组为产物。

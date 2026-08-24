@@ -49,5 +49,5 @@
 | D42 | 2026-07 | 对话 UI | 经典 JRPG 底部对话框 + 打字机 + 选项 + 头像 | 实现最成熟 | ✅ |
 | D43 | 2026-07 | 技术风险 | Day-1 spike 验证浏览器直连 API 的 CORS；被拦则加本地代理 | 风险前置 | ✅ |
 | D44 | 2026-07 | 仓库 | GitHub 私有仓库 https://github.com/sandvee/video-game-1 | 协作事实源 | ✅ |
-| D45 | 2026-07 | API | DeepSeek API key 已就绪（桌面 API.txt，不入库）；连通性待本机验证 | 沙箱环境无法出网，验证需本机浏览器 | 🔶 |
+| D45 | 2026-07 | API | DeepSeek API key 已就绪（桌面 API.txt，不入库）；**spike 已在本机跑通，浏览器直连无 CORS 拦截** | 无需本地代理 | ✅ |
 | D46 | 2026-07 | 草案审核 | NPC/地图/配色三份草案审核通过；人物卡落 data/npcs/*.json（6 张） | 内容方向定稿 | ✅ |

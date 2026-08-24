@@ -18,14 +18,15 @@
 
 每人独立可做的小块：
 
-- [ ] T1 建 GitHub 私有仓库 + 克隆到两台电脑（编程方）
-- [ ] T2 Day-1 spike：浏览器 fetch 调 DS API 返回一句话，验证 CORS（编程方；被拦则写 15 行本地代理）
-- [ ] T3 注册 DeepSeek 开放平台 + 充值约 10 元 + 拿到 API key（两人，先注册者做）
-- [ ] T4 安装 Tiled + LibreSprite，各画一张 8x8 测试图摸清导出（美术方）
-- [ ] T5 审核 NPC 角色草案（docs/drafts/NPC_DRAFTS.md，**草案已出**）→ 确认后落 data/npcs/*.json
-- [ ] T6 确认小镇布局草案（docs/drafts/MAP_DRAFTS.md，**草案已出**）→ 美术方在 Tiled 里画第一版
-- [ ] T7 从 3 套配色中选 1 套（docs/drafts/PALETTES.md，**草案已出**）→ 落 docs/DESIGN.md
+- [x] T1 建 GitHub 私有仓库（https://github.com/sandvee/video-game-1）；本地仓库已 init + 提交；**待首次 push + 同伴 clone**
+- [x] T2 Day-1 spike：浏览器直连 DS API 验证通过（无 CORS 拦截，无需本地代理）
+- [x] T3 注册 DeepSeek 开放平台 + 充值 + API key 就绪（桌面 API.txt，不入库）
+- [ ] T4 安装 Tiled + LibreSprite，各画一张 8x8 测试图摸清导出（美术方，M1 前完成）
+- [x] T5 NPC 角色草案审核通过 → 人物卡定稿 data/npcs/*.json（6 张）
+- [x] T6 小镇布局草案审核通过 → 待美术方在 Tiled 里画第一版
+- [x] T7 配色选定方案 A「奶油与青草」→ 已落 docs/DESIGN.md
 - [ ] T8 观察记录：谁更擅长面对报错、谁更坐得住画图 → 定分工（D31 落地）
+- [ ] T9 首次 push（GitHub Desktop 登录推送）→ 同伴 clone → 两机同步
 
 M0 结束标准：上述全部完成，分工确定，进入 M1。
 
