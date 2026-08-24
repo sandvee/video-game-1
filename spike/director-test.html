@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>L3 可行性测试 · AI 剧情导演测试台</title>
+<style>
+  body { font-family: system-ui; max-width: 760px; margin: 32px auto; padding: 0 16px; background: #F5EFE0; color: #4A3B32; }
+  h2 { margin-bottom: 4px; }
+  input, select, button { box-sizing: border-box; margin: 6px 0; padding: 8px; font-size: 14px; border: 1px solid #B98A5A; border-radius: 4px; }
+  #key { width: 100%; }
+  button { background: #B98A5A; color: #fff; cursor: pointer; font-weight: bold; margin-right: 8px; }
+  button.alt { background: #8FB573; }
+  pre { background: #fff; padding: 12px; border-radius: 4px; white-space: pre-wrap; word-break: break-all; border: 1px solid #D9C9A3; font-size: 12px; max-height: 480px; overflow: auto; }
+  table { border-collapse: collapse; width: 100%; margin-top: 8px; font-size: 13px; }
+  th, td { border: 1px solid #D9C9A3; padding: 4px 8px; text-align: left; }
+  th { background: #FBF6E9; }
+  .ok { color: #2E7D32; } .bad { color: #C62828; } .warn { color: #B85C38; }
+  details { margin: 10px 0; }
+  summary { cursor: pointer; font-weight: bold; }
+</style>
+</head>
+<body>
+  <h2>L3 可行性测试 · AI 剧情导演测试台</h2>
+  <p>目的：验证 v4 flash 能否在<strong>预制事件池</strong>中编排剧情走向（每次游玩不同、不脱轨、能走向结局）。这是 L3「AI 决定主线」的核心机制。</p>
+
+  <label>API Key（桌面 API.txt）</label>
+  <input id="key" type="password" placeholder="sk-...">
+  <label>模型</label>
+  <select id="model">
+    <option value="deepseek-v4-flash">deepseek-v4-flash（推荐）</option>
+    <option value="deepseek-chat">deepseek-chat（旧别名）</option>
+  </select>
+  <br>
+  <button onclick="runRuns(3)">跑 3 局</button>
+  <button onclick="runRuns(5)">跑 5 局对比</button>
+  <button class="alt" onclick="runRuns(1)">跑 1 局</button>
+  <button onclick="togglePrompt()">查看发给 AI 的提示词</button>
+  <div id="status" class="warn">等待开始…</div>
+  <pre id="log">（日志显示在这里）</pre>
+  <details id="promptBox" style="display:none">
+    <summary>最近一次提示词预览（调试用）</summary>
+    <pre id="promptPreview"></pre>
+  </details>
+
+<script>
+// ============ 事件池（后续将迁往 data/events/*.json） ============
+// requires: 全部满足才可选；requiresAny: 至少满足其一；minEvents: 已触发事件数下限；ending: 结局事件
+const POOL = [
+  { id: 'meet_lin',          title: '开场·林叔',         premise: '主角到咖啡馆，林叔交代暑假帮忙', requires: [], requiresAny: [], minEvents: 0, sets: ['met_lin'], ending: false },
+  { id: 'bench_bread',       title: '长椅上的面包',      premise: '河边长椅上有人放了一份面包，陈婆婆的秘密入口', requires: [], requiresAny: [], minEvents: 0, sets: ['bench_known'], ending: false },
+  { id: 'river_rumor',       title: '河边的传闻',        premise: '老周钓鱼时提起“每年夏天河里有光”', requires: [], requiresAny: [], minEvents: 0, sets: ['heard_rumor'], ending: false },
+  { id: 'lost_key',          title: '阿禾丢钥匙',        premise: '阿禾的杂货店钥匙丢了，主角帮忙找', requires: [], requiresAny: [], minEvents: 0, sets: ['helped_he'], ending: false },
+  { id: 'su_li_invite',      title: '苏黎的邀请函',      premise: '苏黎收到大城市夏令营邀请函，犹豫要不要走', requires: [], requiresAny: [], minEvents: 0, sets: ['su_li_open'], ending: false },
+  { id: 'old_zhou_story',    title: '老周讲当年',        premise: '老周说起年轻时真见过一次光', requires: ['heard_rumor'], requiresAny: [], minEvents: 0, sets: ['light_history'], ending: false },
+  { id: 'chen_po_secret',    title: '陈婆婆的秘密',      premise: '陈婆婆承认面包是放给河边长椅的（纪念老伴）', requires: ['bench_known'], requiresAny: [], minEvents: 0, sets: ['chen_po_trust'], ending: false },
+  { id: 'xiao_man_motive',   title: '小满的动机',        premise: '小满说画光是为了完成一位素未谋面之人的心愿', requires: [], requiresAny: [], minEvents: 0, sets: ['xiao_man_known'], ending: false },
+  { id: 'river_light_seen',  title: '夜晚见光',          premise: '主角夜里在河边真的看到了淡淡的光（主线推进）', requires: ['light_history'], requiresAny: ['xiao_man_known', 'chen_po_trust'], minEvents: 0, sets: ['saw_light'], ending: false },
+  { id: 'ending_calm',       title: '结局·平静的夏天',   premise: '夏天结束，光之谜未解，生活继续（平静结局）', requires: [], requiresAny: [], minEvents: 6, sets: [], ending: true },
+  { id: 'ending_mystery',    title: '结局·光之谜',       premise: '主角亲眼见过光，带着疑问离开小镇（悬念结局）', requires: ['saw_light'], requiresAny: [], minEvents: 0, sets: [], ending: true }
+];
+
+const WORLD = '云杉镇：一座河边小镇，三百多口人，以「树影咖啡馆」与手作面包闻名。主角小夏（20 岁，大一学生）暑假回乡帮舅舅（林叔）打理咖啡馆。基调平淡温柔，允许一点轻悬念（“河边的光”），但整体治愈不压抑。';
+
+// ============ 提示词构建 ============
+function buildPrompt(seq, flags, available, endOptions) {
+  const list = POOL.map(ev => {
+    const req = ev.requires.length ? ev.requires.join(' 且 ') : (ev.requiresAny.length ? ('任一: ' + ev.requiresAny.join('/')) : '无');
+    const ending = ev.ending ? '【结局】' : '';
+    return `- ${ev.id}「${ev.title}」：${ev.premise}（前置: ${req}${ev.minEvents ? '，至少触发' + ev.minEvents + '个事件' : ''}）${ending}`;
+  }).join('\n');
+  return `【角色】你是《云杉镇》的剧情导演（AI Director）。你只负责决定“下一步发生哪个事件”，不写角色对话。
+【世界观】${WORLD}
+【事件池】只能选择下列事件（id 唯一）：
+${list}
+【当前状态】已发生事件顺序：${seq.length ? seq.join(' → ') : '（开局，尚无事件）'}
+已解锁标记：${flags.length ? flags.join(', ') : '（无）'}
+【规则】
+1. 只能选择“前置条件全部满足”的事件；结局事件只有条件满足才能选；结局事件一旦选中，本局结束。
+2. 事件不要重复；优先推进尚未发生的事件；同一条故事线（老周-光 / 陈婆婆-长椅 / 苏黎-邀请函）建议串起来讲。
+3. 节奏：前期 1-2 个日常铺垫 → 中期推进线索 → 约第 6-9 个事件时选择结局事件收束。不要过早结束，也不要拖到第 10 个以上。
+4. 输出恰好两行：第一行 [事件]事件id；第二行 1-2 句衔接旁白（叙事性描写发生了什么，不写角色台词、不写玩家选项）。
+5. 严禁输出事件池之外的 id；严禁编造事件；严禁输出多余解释。
+【现在输出】`;
+
+// ============ 解析 ============
+function parseEventId(text) {
+  const m = text.match(/\[事件\]\s*([A-Za-z0-9_]+)/);
+  return m ? m[1] : null;
+}
+function narrLine(text) {
+  const m = text.match(/\[事件\]\s*[A-Za-z0-9_]+\s*\n?\s*([\s\S]*)/);
+  return (m && m[1] ? m[1] : text).trim().slice(0, 200);
+}
+
+// ============ API 调用 ============
+async function callAI(key, model, prompt) {
+  const res = await fetch('https://api.deepseek.com/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+    body: JSON.stringify({ model, messages: [{ role: 'user', content: prompt }], stream: false, max_tokens: 300 })
+  });
+  if (!res.ok) throw new Error('HTTP ' + res.status + ': ' + (await res.text()).slice(0, 200));
+  const data = await res.json();
+  return data.choices[0].message.content;
+}
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+// ============ 单局模拟 ============
+async function runOnce(key, model) {
+  const flags = [], seq = [], viol = [], narrs = [];
+  let ending = null, malformed = 0, fallback = 0;
+  for (let step = 0; step < 15; step++) {
+    const avail = POOL.filter(ev => !ev.ending && ev.requires.every(f => flags.includes(f)) && (ev.requiresAny.length === 0 || ev.requiresAny.some(f => flags.includes(f))) && seq.length >= ev.minEvents);
+    const ends = POOL.filter(ev => ev.ending && ev.requires.every(f => flags.includes(f)) && (ev.requiresAny.length === 0 || ev.requiresAny.some(f => flags.includes(f))) && seq.length >= ev.minEvents);
+    if (avail.length === 0 && ends.length === 0) { viol.push('卡死：无可用事件'); break; }
+    const prompt = buildPrompt(seq, flags, avail, ends);
+    lastPrompt = prompt;
+    const text = await callAI(key, model, prompt);
+    let ev = null;
+    const id = parseEventId(text);
+    if (id) {
+      const found = POOL.find(e => e.id === id);
+      if (found) {
+        if ((found.ending && !ends.includes(found)) || (!found.ending && !avail.includes(found))) {
+          viol.push('违规选择:' + id + '（前置不满足）');
+        } else { ev = found; }
+      } else { viol.push('非法id:' + id); }
+    } else { malformed++; viol.push('未解析出[事件]标记'); }
+    if (!ev) { fallback++; ev = (avail.length ? avail[Math.floor(Math.random() * avail.length)] : ends[0]); }
+    seq.push(ev.id);
+    narrs.push(narrLine(text));
+    ev.sets.forEach(f => { if (!flags.includes(f)) flags.push(f); });
+    if (ev.ending) { ending = ev.id; break; }
+    await sleep(200);
+  }
+  return { seq, ending, viol, malformed, fallback, narrs };
+}
+
+let lastPrompt = '';
+
+// ============ 运行入口 ============
+const logEl = document.getElementById('log');
+const statusEl = document.getElementById('status');
+function log(s) { logEl.textContent += s + '\n'; }
+
+async function runRuns(n) {
+  const key = document.getElementById('key').value.trim();
+  const model = document.getElementById('model').value;
+  if (!key) { statusEl.textContent = '请先填写 API Key'; statusEl.className = 'bad'; return; }
+  logEl.textContent = ''; lastPrompt = '';
+  statusEl.textContent = '运行中（每局约 6-10 次调用，需 1-2 分钟）…'; statusEl.className = 'warn';
+  const results = [];
+  for (let i = 0; i < n; i++) {
+    log(`—— 第 ${i + 1} 局 ——`);
+    try {
+      const r = await runOnce(key, model);
+      results.push(r);
+      log(`事件序列: ${r.seq.join(' → ')}`);
+      log(`结局: ${r.ending || '无（15 步未结束）'} | 违规: ${r.viol.length} | 兜底: ${r.fallback} | 未解析: ${r.malformed}`);
+      r.viol.forEach(v => log('  ⚠ ' + v));
+    } catch (e) { log('❌ 本局失败: ' + e.message); }
+    log('');
+  }
+  // 汇总
+  if (results.length) {
+    const distinct = new Set(results.map(r => r.seq.join('>'))).size;
+    const endOk = results.filter(r => r.ending).length;
+    const totalViol = results.reduce((s, r) => s + r.viol.length, 0);
+    statusEl.textContent = `完成：${results.length} 局，不同事件序列 ${distinct} 种，自然走到结局 ${endOk}/${results.length} 局，共违规 ${totalViol} 次`;
+    statusEl.className = totalViol <= results.length && endOk >= results.length * 0.7 ? 'ok' : 'bad';
+    log(`\n===== 汇总 =====`);
+    log(`不同事件序列: ${distinct} 种 / ${results.length} 局`);
+    log(`自然结局: ${endOk}/${results.length} 局`);
+    log(`违规/兜底/未解析 合计: ${totalViol} 次（目标：每局 ≤1 次）`);
+    log(`判断标准：序列 ≥3 种 且 结局 ≥70% 且 每局违规 ≤1 → L3 机制可行`);
+  }
+}
+function togglePrompt() {
+  const box = document.getElementById('promptBox');
+  box.style.display = box.style.display === 'none' ? 'block' : 'none';
+  document.getElementById('promptPreview').textContent = lastPrompt || '（尚未运行）';
+}
+</script>
+</body>
+</html>
