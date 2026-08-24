@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>对话协议测试 · [选项] 标记服从率</title>
+<style>
+  body { font-family: system-ui; max-width: 760px; margin: 32px auto; padding: 0 16px; background: #F5EFE0; color: #4A3B32; }
+  h2 { margin-bottom: 4px; }
+  input, select, button { box-sizing: border-box; margin: 6px 0; padding: 8px; font-size: 14px; border: 1px solid #B98A5A; border-radius: 4px; }
+  #key { width: 100%; }
+  button { background: #B98A5A; color: #fff; cursor: pointer; font-weight: bold; margin-right: 8px; }
+  button.alt { background: #8FB573; }
+  pre { background: #fff; padding: 12px; border-radius: 4px; white-space: pre-wrap; word-break: break-all; border: 1px solid #D9C9A3; font-size: 12px; max-height: 480px; overflow: auto; }
+  .ok { color: #2E7D32; } .bad { color: #C62828; } .warn { color: #B85C38; }
+  details { margin: 10px 0; }
+  summary { cursor: pointer; font-weight: bold; }
+</style>
+</head>
+<body>
+  <h2>对话协议测试 · [选项] 标记服从率（决策 D49）</h2>
+  <p>目的：验证 v4 flash 输出对话时对 <code>[选项]</code> / <code>[事件]</code> 标记的服从率，决定 M3 对话协议用「标记」还是「JSON」。背景：导演测试已证明 v4 flash 对 <code>[事件]</code> 标记服从性差（11 步 7 次失败）。</p>
+
+  <label>API Key（桌面 API.txt）</label>
+  <input id="key" type="password" placeholder="sk-...">
+  <label>模型</label>
+  <select id="model">
+    <option value="deepseek-v4-flash">deepseek-v4-flash（推荐）</option>
+    <option value="deepseek-chat">deepseek-chat（旧别名）</option>
+  </select>
+  <br>
+  <button onclick="runAll(2)">跑 2 段对话（林叔+苏黎）</button>
+  <button class="alt" onclick="runAll(1)">只跑 1 段（林叔）</button>
+  <button onclick="togglePrompt()">查看发给 AI 的提示词</button>
+  <div id="status" class="warn">等待开始…</div>
+  <pre id="log">（日志显示在这里）</pre>
+  <details id="promptBox" style="display:none">
+    <summary>最近一次请求预览（调试用）</summary>
+    <pre id="promptPreview"></pre>
+  </details>
+
+<script>
+// ============ 测试用 NPC（与 data/npcs/*.json 同款结构） ============
+const NPCS = {
+  lin_shu: { name: '林叔', persona: '咖啡馆老板，55 岁，主角舅舅。寡言温和、慢性子，话少但都做在实处。常用「嗯」「行吧」，偶尔冷幽默。' },
+  su_li:   { name: '苏黎', persona: '20 岁青梅竹马，图书馆暑期工。开朗、话多、分享欲强，爱用「诶」「跟你说哦」，是唯一敢损主角的人。' }
+};
+const WORLD = '云杉镇：一座河边小镇，三百多口人，以「树影咖啡馆」与手作面包闻名。主角小夏（20 岁，大一学生）暑假回乡帮舅舅（林叔）打理咖啡馆。基调平淡温柔，允许一点轻悬念（“河边的光”），但整体治愈不压抑。';
+const FORMAT = '先输出你的台词（可多行）；需要玩家选择时，在单独一行输出 [选项]选项文案（最多 4 个，口语化，不要编号）；对话中若应触发剧情事件，在最后加一行 [事件]事件id（只能用提供的事件列表，没有就不输出）。';
+const BAN = '禁止：剧透未发生剧情；提到不存在的人物/地点；打破第四面墙；让主角或 NPC 死亡；输出 [选项]/[事件] 以外的标记；用全角括号【选项】代替 [选项]。';
+const EVENTS = '可用事件：bench_bread 长椅上的面包；river_rumor 河边传闻；su_li_invite 苏黎的邀请函。';
+
+function buildSystem(npc) {
+  return '【角色】你是《治愈小镇》里的' + npc.name + '。' + npc.persona + '\n' +
+    '【世界观】' + WORLD + '\n' +
+    '【风格】平淡温柔治愈的中文口语，每句 30 字以内，不用网络流行语。\n' +
+    '【输出格式】' + FORMAT + '\n' +
+    '【禁令】' + BAN + '\n' +
+    '【事件池】' + EVENTS;
+}
+
+// ============ 解析与统计 ============
+function parseStats(text) {
+  const st = { parseOk: false, options: 0, event: null, violations: [] };
+  const lines = String(text).split('\n').map(l => l.trim()).filter(Boolean);
+  let speech = 0;
+  for (const l of lines) {
+    if (l.startsWith('[选项]')) { st.options++; continue; }
+    if (l.startsWith('[事件]')) { st.event = l.slice(5).trim(); continue; }
+    if (l.startsWith('[情绪]')) continue;
+    if (l.startsWith('[') || l.startsWith('【')) { st.violations.push('异常标记: ' + l.slice(0, 30)); continue; }
+    speech++;
+  }
+  st.parseOk = speech > 0 || st.options > 0;
+  if (st.options > 4) st.violations.push('选项超过 4 个: ' + st.options);
+  if (st.options > 0 && speech === 0) st.violations.push('有选项但无台词');
+  if (st.event && !['bench_bread', 'river_rumor', 'su_li_invite'].includes(st.event)) st.violations.push('事件id不在池内: ' + st.event);
+  return st;
+}
+
+// ============ API 调用 ============
+async function callAI(key, model, messages) {
+  const res = await fetch('https://api.deepseek.com/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+    body: JSON.stringify({ model, messages, stream: false, max_tokens: 400 })
+  });
+  if (!res.ok) throw new Error('HTTP ' + res.status + ': ' + (await res.text()).slice(0, 200));
+  const data = await res.json();
+  return data.choices[0].message.content;
+}
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+// ============ 单段对话模拟（6 轮） ============
+async function runConversation(key, model, npcKey) {
+  const npc = NPCS[npcKey];
+  const sys = buildSystem(npc);
+  let history = [];
+  const script = ['你好。', '今天镇上有什么新鲜事吗？', '……然后呢？', '我先走了，再见。'];
+  let scriptIdx = 0;
+  let lastOptions = [];
+  const turns = [];
+  for (let t = 0; t < 6; t++) {
+    const userMsg = (t > 0 && lastOptions.length) ? lastOptions[0] : (script[scriptIdx++] || '嗯。');
+    lastPrompt = '【system】' + sys + '\n【对话历史(最近)】' + JSON.stringify(history.slice(-4)) + '\n【本次玩家输入】' + userMsg;
+    let reply;
+    try {
+      reply = await callAI(key, model, [{ role: 'system', content: sys }].concat(history).concat([{ role: 'user', content: userMsg }]));
+    } catch (e) { turns.push({ user: userMsg, error: e.message, stats: { parseOk: false, options: 0, event: null, violations: ['请求失败: ' + e.message] } }); break; }
+    const st = parseStats(reply);
+    lastOptions = [];
+    for (const l of reply.split('\n')) { const x = l.trim(); if (x.startsWith('[选项]')) lastOptions.push(x.slice(4).trim()); }
+    turns.push({ user: userMsg, reply: reply, stats: st });
+    history = history.concat([{ role: 'user', content: userMsg }, { role: 'assistant', content: reply }]).slice(-12);
+    await sleep(150);
+  }
+  return { npcKey: npc.name, turns };
+}
+
+// ============ 汇总判定 ============
+function summarize(runs) {
+  let turns = 0, parseOk = 0, optTurns = 0, optOk = 0, violations = 0, events = 0;
+  for (const r of runs) for (const t of r.turns) {
+    turns++;
+    if (t.stats.parseOk) parseOk++;
+    if (t.stats.options > 0) { optTurns++; if (t.stats.options <= 4 && t.stats.violations.length === 0) optOk++; }
+    violations += t.stats.violations.length;
+    if (t.stats.event) events++;
+  }
+  const parseRate = turns ? (parseOk / turns) : 0;
+  const optCompliance = optTurns ? (optOk / optTurns) : 1;
+  const verdict = (parseRate >= 0.95 && optCompliance >= 0.85 && violations <= 2)
+    ? '✅ 标记协议可行，M3 沿用 [选项]/[事件] 标记'
+    : '⚠ 标记服从率不足 → M3 改用 JSON 协议（{"reply","options","event"}）+ 宽容回退';
+  return { turns, parseRate, optCompliance, violations, events, verdict };
+}
+
+let lastPrompt = '';
+
+// ============ 运行入口 ============
+const logEl = document.getElementById('log');
+const statusEl = document.getElementById('status');
+function log(s) { logEl.textContent += s + '\n'; }
+
+async function runAll(n) {
+  const key = document.getElementById('key').value.trim();
+  const model = document.getElementById('model').value;
+  if (!key) { statusEl.textContent = '请先填写 API Key'; statusEl.className = 'bad'; return; }
+  logEl.textContent = ''; lastPrompt = '';
+  statusEl.textContent = '运行中（每段 6 轮 × ' + n + ' 段，约 1 分钟）…'; statusEl.className = 'warn';
+  const runs = [];
+  const npcKeys = ['lin_shu', 'su_li'];
+  for (let i = 0; i < n; i++) {
+    const npcKey = npcKeys[i % 2];
+    log('—— ' + NPCS[npcKey].name + ' 的对话（第 ' + (i + 1) + ' 段）——');
+    const r = await runConversation(key, model, npcKey);
+    runs.push(r);
+    r.turns.forEach((t, i) => {
+      log('  轮' + (i + 1) + ' 玩家: ' + t.user.slice(0, 20));
+      log('    AI: ' + (t.reply || t.error).split('\n')[0].slice(0, 60) + (t.reply ? ' …' : ''));
+      log('    [选项]x' + t.stats.options + ' [事件]' + (t.stats.event || '-') + ' 解析' + (t.stats.parseOk ? 'OK' : 'FAIL') + (t.stats.violations.length ? ' ⚠' + t.stats.violations.join(';') : ''));
+    });
+    log('');
+  }
+  const s = summarize(runs);
+  statusEl.textContent = '解析率 ' + Math.round(s.parseRate * 100) + '% | 选项合规率 ' + Math.round(s.optCompliance * 100) + '% | 违规 ' + s.violations + ' 次 | ' + s.verdict;
+  statusEl.className = s.verdict.startsWith('✅') ? 'ok' : 'bad';
+  log('===== 汇总 =====');
+  log('回合数: ' + s.turns + ' | 解析率: ' + Math.round(s.parseRate * 100) + '%（目标 ≥95%）');
+  log('选项合规率: ' + Math.round(s.optCompliance * 100) + '%（目标 ≥85%，含选项回合 ' + s.turns + ' 中 ' + ' 回合）');
+  log('违规合计: ' + s.violations + ' 次（目标 ≤2）| 事件标记出现: ' + s.events + ' 次');
+  log('判定: ' + s.verdict);
+}
+function togglePrompt() {
+  const box = document.getElementById('promptBox');
+  box.style.display = box.style.display === 'none' ? 'block' : 'none';
+  document.getElementById('promptPreview').textContent = lastPrompt || '（尚未运行）';
+}
+</script>
+</body>
+</html>
