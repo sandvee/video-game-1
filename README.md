@@ -31,7 +31,9 @@ AI 调用 DeepSeek API（v4 flash），本地 Tiled 画地图，LibreSprite 画�
 - [x] 内容草案三件套已审核通过；NPC 人物卡已定稿 data/npcs/*.json；配色选定方案 A「奶油与青草」
 - [x] Day-1 spike 测试页已就绪：spike/api-test.html（填 key 即可验证浏览器直连 API）
 - [x] DeepSeek API key 已就绪（桌面 API.txt，**不入库**）；**spike 已在本机跑通，浏览器直连无 CORS 拦截**
+- [x] **M1 引擎原型已就绪：双击 index.html 即可玩**（40x30 测试地图渲染 + 四向移动 + 碰撞 + 镜头跟随 + 8 个触发点）
 - [ ] M0 剩余：推送仓库到 GitHub（首次用 GitHub Desktop）→ 同伴 clone → 装 Tiled/LibreSprite → 画小镇第一版 → 定分工
+- [ ] M1 待办：美术方在 Tiled 绘制真实小镇地图替换测试图；咖啡馆室内场景切换
 
 ## 协作约定（速查）
 

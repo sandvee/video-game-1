@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>云杉镇 · M1 地图原型</title>
+<style>
+  body { margin:0; background:#2E2A26; display:flex; flex-direction:column; align-items:center; padding-top:24px; font-family:system-ui; color:#F5EFE0; }
+  h1 { font-size:18px; font-weight:normal; margin:0 0 12px; }
+  canvas { border:2px solid #4A3B32; image-rendering: pixelated; }
+  p.hint { font-size:12px; color:#C9C0B0; margin-top:10px; }
+</style>
+</head>
+<body>
+  <h1>云杉镇 · M1 地图原型（占位美术，双击打开即玩）</h1>
+  <canvas id="game" width="960" height="720"></canvas>
+  <p class="hint">WASD / 方向键 移动 · 空格 互动 · 当前为程序生成的测试地图，真实 Tiled 地图由美术方绘制后替换</p>
+  <script src="src/config.js"></script>
+  <script src="src/maps/town.map.js"></script>
+  <script src="src/engine.js"></script>
+</body>
+</html>
