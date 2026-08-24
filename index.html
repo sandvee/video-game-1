@@ -2,22 +2,39 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<title>云杉镇 · M2 对话原型</title>
+<title>云杉镇 · M3 真 AI 对话</title>
 <style>
   body { margin:0; background:#2E2A26; display:flex; flex-direction:column; align-items:center; padding-top:24px; font-family:system-ui; color:#F5EFE0; }
   h1 { font-size:18px; font-weight:normal; margin:0 0 12px; }
   canvas { border:2px solid #4A3B32; image-rendering: pixelated; }
   p.hint { font-size:12px; color:#C9C0B0; margin-top:10px; }
+  #keyset { display:none; align-items:center; gap:8px; margin-bottom:12px; font-size:13px; }
+  #apikey { width:360px; padding:6px 8px; border:1px solid #B98A5A; border-radius:4px; font-size:13px; }
+  #keyset button { padding:6px 14px; background:#B98A5A; color:#fff; border:none; border-radius:4px; cursor:pointer; font-size:13px; }
 </style>
 </head>
 <body>
-  <h1>云杉镇 · M2 对话原型（假数据，双击打开即玩）</h1>
+  <h1>云杉镇 · M3 真 AI 对话（JSON 协议）</h1>
+  <div id="keyset">
+    <span>DeepSeek API Key（存本机 localStorage，绝不上传 GitHub）：</span>
+    <input id="apikey" type="password" placeholder="sk-...">
+    <button onclick="saveKey()">保存并开始</button>
+  </div>
   <canvas id="game" width="960" height="720"></canvas>
-  <p class="hint">WASD / 方向键 移动 · 走近 NPC 按空格对话 · 选项用数字键 1-4 或鼠标点击 · 对话数据为本地假数据，M3 换成真 AI</p>
+  <p class="hint">WASD 移动 · 走近 NPC 按空格对话 · 选项数字键/点击 · Esc 或 × 离开对话 · 有 Key 用真 AI，无 Key 自动用假数据（同伴也能玩）</p>
   <script src="src/config.js"></script>
   <script src="src/maps/town.map.js"></script>
+  <script src="src/personas.js"></script>
   <script src="src/dialogues.js"></script>
+  <script src="src/ai.js"></script>
   <script src="src/dialogue.js"></script>
   <script src="src/engine.js"></script>
+  <script>
+    function saveKey() {
+      var k = document.getElementById('apikey').value;
+      if (k.trim()) { window.AI.setKey(k); document.getElementById('keyset').style.display = 'none'; }
+    }
+    if (!(window.AI && window.AI.ready())) { document.getElementById('keyset').style.display = 'flex'; }
+  </script>
 </body>
 </html>
